@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Expense Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Tesseract.js for OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Configure API base URL for frontend (set to your Render URL in Vercel) -->
+    <script>
+        // In Vercel, update this line to your Render backend URL, e.g.:
+        // window.ENV_API_BASE = 'https://your-backend.onrender.com';
+        window.ENV_API_BASE = 'https://expense-tracker-xx53.onrender.com';
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Expense Tracker</h1>
+            <p class="subtitle">Track your daily expenses easily</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Add Expense Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Add New Expense</h2>
+                    <div class="mode-toggle">
+                        <button type="button" id="quickModeBtn" class="mode-btn active">📝 Quick Form</button>
+                        <button type="button" id="aiModeBtn" class="mode-btn">🤖 AI Mode</button>
+                        <button type="button" id="receiptModeBtn" class="mode-btn">📸 Scan Receipt</button>
+                    </div>
+                </div>
+                <form id="expenseForm">
+                    <div class="form-group">
+                        <label for="userId">User ID</label>
+                        <input type="text" id="userId" placeholder="Enter your user ID" required>
+                    </div>
+                    
+                    <!-- AI Mode: Natural Language Input -->
+                    <div id="aiModeFields" style="display: none;">
+                        <div class="form-group">
+                            <label for="naturalInput">Describe Your Expense</label>
+                            <textarea 
+                                id="naturalInput" 
+                                rows="3" 
+                                placeholder="e.g., Spent 500 rupees on groceries today, Paid 1200 for dinner yesterday"
+                            ></textarea>
+                            <small class="help-text">💡 Just describe naturally - AI will extract details!</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Receipt Mode: OCR Scanner -->
+                    <div id="receiptModeFields" style="display: none;">
+                        <div class="form-group" style="text-align: center;">
+                            <input type="file" id="receiptInput" accept="image/*" style="display: none;">
+                            <label for="receiptInput" class="upload-btn" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; cursor: pointer; font-size: 1.1rem; transition: all 0.3s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                📸 Upload Receipt
+                            </label>
+                            <p style="color: #888; margin-top: 15px; font-size: 14px;">Or <button type="button" id="skipOCRBtn" style="background: none; border: none; color: #667eea; cursor: pointer; text-decoration: underline; font-size: 14px;">skip and enter manually</button></p>
+                        </div>
+                        
+                        <div id="ocrPreview" style="display: none; margin-top: 20px; text-align: center;">
+                            <h4 style="color: #667eea; margin-bottom: 15px;">📋 Receipt Preview</h4>
+                            <img id="receiptImage" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px;">
+                            
+                            <div id="ocrProgress" style="display: none; background: #f0f4ff; padding: 20px; border-radius: 8px; margin-top: 15px;">
+                                <div class="loader" style="display: inline-block; margin-bottom: 10px;"></div>
+                                <p style="margin: 5px 0; color: #667eea; font-weight: 600;">🤖 AI is scanning your receipt...</p>
+                                <p id="ocrProgressText" style="margin: 10px 0; font-size: 13px; color: #666;"></p>
+                                <button id="cancelOCR" type="button" style="margin-top: 10px; padding: 8px 20px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer;">Cancel</button>
+                            </div>
+                            
+                            <div id="extractedData" style="display: none; background: #f0fff4; padding: 20px; border-radius: 8px; margin-top: 15px; text-align: left; border: 2px solid #10b981;">
+                                <h4 style="margin: 0 0 15px 0; color: #10b981; text-align: center;">✓ Extracted Information</h4>
+                                <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                    <p style="margin: 8px 0;"><strong>Amount:</strong> ₹<span id="extractedAmount"></span></p>
+                                    <p style="margin: 8px 0;"><strong>Category:</strong> <span id="extractedCategory"></span></p>
+                                    <p style="margin: 8px 0;"><strong>Date:</strong> <span id="extractedDate"></span></p>
+                                    <p style="margin: 8px 0;"><strong>Description:</strong> <span id="extractedDescription"></span></p>
+                                </div>
+                                <div style="text-align: center;">
+                                    <button id="confirmReceiptBtn" type="button" class="btn btn-primary" style="padding: 12px 30px; font-size: 1rem;">✓ Save Expense</button>
+                                    <button id="retryOCRBtn" type="button" style="margin-left: 10px; padding: 12px 25px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">📸 Try Another</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Mode: Form Fields -->
+                    <div id="quickModeFields">
+                        <div class="form-group">
+                            <label for="amount">Amount (₹)</label>
+                            <input type="number" id="amount" placeholder="0" step="1" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="category">Category</label>
+                            <select id="category">
+                                <option value="">Select a category</option>
+                                <option value="Food">🍔 Food & Dining</option>
+                                <option value="Transport">🚗 Transport</option>
+                                <option value="Shopping">🛍️ Shopping</option>
+                                <option value="Entertainment">🎬 Entertainment</option>
+                                <option value="Bills">📄 Bills & Utilities</option>
+                                <option value="Health">⚕️ Health & Medical</option>
+                                <option value="Education">📚 Education</option>
+                                <option value="Other">📦 Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="customCategoryGroup" style="display: none;">
+                            <label for="customCategory">Specify Category</label>
+                            <input type="text" id="customCategory" placeholder="Enter custom category">
+                        </div>
+                        <div class="form-group">
+                            <label for="date">Date</label>
+                            <input type="date" id="date">
+                        </div>
+                        <div class="form-group">
+                            <label for="description">Description 🤖</label>
+                            <input type="text" id="description" placeholder="e.g., Lunch at restaurant, Auto fare, Movie tickets">
+                            <small class="help-text">💡 AI will auto-suggest category as you type!</small>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span id="btnText">Add Expense</span>
+                        <span id="btnLoader" class="loader" style="display: none;"></span>
+                    </button>
+                </form>
+                <div id="message" class="message"></div>
+            </div>
+
+            <!-- Expenses List Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h2>Your Expenses</h2>
+                    <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+                </div>
+                <div id="expensesList" class="expenses-list">
+                    <p class="empty-state">Enter your User ID and add an expense to get started!</p>
+                </div>
+                <div id="totalAmount" class="total-amount"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by Supabase</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
