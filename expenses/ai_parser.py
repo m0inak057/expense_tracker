@@ -3,7 +3,8 @@ import json
 from datetime import datetime
 from openai import OpenAI
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Lazily initialized OpenAI client (only if needed)
+_openai_client = None
 
 # Determine which AI parser to use
 USE_MOCK_PARSER = os.getenv("USE_MOCK_PARSER", "false").lower() == "true"
@@ -56,8 +57,18 @@ TEXT: "{text}"
 Return only the JSON object, nothing else.
 """
 
+    # Initialise OpenAI client only when we actually need it
+    global _openai_client
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("OPENAI_API_KEY not set; cannot use OpenAI parser. Consider enabling USE_GEMINI or USE_MOCK_PARSER.")
+        return None
+
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=api_key)
+
     try:
-        response = client.chat.completions.create(
+        response = _openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
